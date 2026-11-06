@@ -108,6 +108,10 @@ docker compose stop         # arrête la stack, les données restent dans ./data
 
 Pour révoquer la clé de démo, supprime-la dans LiteLLM (endpoint `/key/delete`) ou change la clé maître.
 
+## Monitoring (optionnel)
+
+Tableau de bord Grafana en lecture seule : dépense par clé, budget restant, estimation du CO2 par modèle. Voir [`monitoring/README.md`](monitoring/README.md).
+
 ## Dépannage
 
 - Un service ne démarre pas : `docker compose logs <service>`

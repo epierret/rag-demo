@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: LiteLLM
+    uid: litellm-pg
+    # Grafana 11 et plus. Sur une version plus ancienne, mets "postgres".
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: grafana_ro
+    database: litellm
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      # Grafana remplace $GRAFANA_RO_PASSWORD par la valeur de l'environnement du conteneur
+      password: $GRAFANA_RO_PASSWORD

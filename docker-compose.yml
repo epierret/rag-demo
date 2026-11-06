@@ -30,9 +30,35 @@ services:
     environment:
       STORAGE_DIR: /app/server/storage
     volumes:
-      - ./data/anythingllm:/app/server/storage
+      # Volume nommé : évite les problèmes de permissions de SQLite avec un dossier monté
+      - anythingllm_storage:/app/server/storage
     ports:
       - "127.0.0.1:3001:3001"
     depends_on:
       - litellm
     restart: unless-stopped
+
+  # Monitoring optionnel, hors démarrage par défaut :
+  #   docker compose --profile monitoring up -d grafana
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GRAFANA_RO_PASSWORD: ${GRAFANA_RO_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      # Port 3100 côté hôte : le port 3000 est déjà utilisé par une autre stack Grafana sur la VM
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  anythingllm_storage:
+  grafana_data:
