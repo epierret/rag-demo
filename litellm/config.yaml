@@ -1,0 +1,11 @@
+model_list:
+  - model_name: mistral-small
+    litellm_params:
+      # Pour la démo, l'alias "mistral-small-latest" suit la dernière version.
+      # Pour une démo sérieuse, épingle une version précise (voir la doc Mistral).
+      model: mistral/mistral-small-latest
+      api_key: os.environ/MISTRAL_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL

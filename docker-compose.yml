@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      # Lié à localhost uniquement : rien n'est exposé directement sur internet
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  anythingllm:
+    image: mintplexlabs/anythingllm
+    environment:
+      STORAGE_DIR: /app/server/storage
+    volumes:
+      - ./data/anythingllm:/app/server/storage
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      - litellm
+    restart: unless-stopped
