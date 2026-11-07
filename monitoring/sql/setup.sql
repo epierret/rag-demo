@@ -64,5 +64,9 @@ SELECT
 FROM "LiteLLM_VerificationToken"
 WHERE key_alias IS NOT NULL;
 
+-- Liste des modèles connus, pour le filtre du dashboard (sans les facteurs).
+CREATE OR REPLACE VIEW monitoring.v_models AS
+SELECT model FROM monitoring.co2_factors;
+
 GRANT USAGE ON SCHEMA monitoring TO grafana_ro;
-GRANT SELECT ON monitoring.v_spend, monitoring.v_keys TO grafana_ro;
+GRANT SELECT ON monitoring.v_spend, monitoring.v_keys, monitoring.v_models TO grafana_ro;

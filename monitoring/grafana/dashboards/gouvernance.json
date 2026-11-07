@@ -1,6 +1,6 @@
 {
   "uid": "rag-gouvernance",
-  "title": "RAG démo : dépense, CO2 et plafonds",
+  "title": "Gouvernance IA : dépense, plafonds et CO2 (RAG démo)",
   "tags": [
     "gouvernance",
     "litellm"
@@ -18,7 +18,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Dépense totale (USD)",
+      "title": "Combien a coûté la période ? (USD)",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -39,7 +39,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(cout_usd), 0) AS depense FROM monitoring.v_spend WHERE $__timeFilter(ts)"
+          "rawSql": "SELECT COALESCE(SUM(cout_usd), 0) AS depense FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele)"
         }
       ],
       "fieldConfig": {
@@ -54,7 +54,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -76,8 +77,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "CO2 estimé (g)",
-      "description": "Estimation : tokens totaux / 1 000 × facteur du modèle. Voir le panneau « Comment lire le CO2 ».",
+      "title": "Combien de CO2 émis ? (gCO2e, estimation)",
+      "description": "Estimation : tokens × facteur du modèle. Ce n'est pas une mesure.",
       "gridPos": {
         "x": 6,
         "y": 0,
@@ -98,7 +99,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(co2_g_estime), 0) AS co2 FROM monitoring.v_spend WHERE $__timeFilter(ts)"
+          "rawSql": "SELECT COALESCE(SUM(co2_g_estime), 0) AS co2 FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele)"
         }
       ],
       "fieldConfig": {
@@ -113,7 +114,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -135,7 +137,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Requêtes",
+      "title": "Combien de requêtes enregistrées ?",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -156,7 +158,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) AS requetes FROM monitoring.v_spend WHERE $__timeFilter(ts)"
+          "rawSql": "SELECT COUNT(*) AS requetes FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele)"
         }
       ],
       "fieldConfig": {
@@ -170,7 +172,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -192,7 +195,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Clés épuisées ou bloquées",
+      "title": "Combien de clés bloquées ou épuisées ?",
       "description": "Une clé épuisée est refusée par LiteLLM au prochain appel. Ce compteur ne dépend pas de la période affichée.",
       "gridPos": {
         "x": 18,
@@ -232,7 +235,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -254,11 +258,11 @@
     {
       "id": 5,
       "type": "table",
-      "title": "Budget par clé (depuis la création)",
+      "title": "Combien de budget reste-t-il par clé ?",
       "description": "Le budget est un cumul, pas un budget mensuel. La couleur passe à l'orange à 80 % et au rouge à 100 %.",
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 7,
         "w": 24,
         "h": 8
       },
@@ -276,7 +280,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT cle AS \"Clé\", ROUND(depense_usd::numeric, 4) AS \"Dépensé (USD)\", plafond_usd AS \"Plafond (USD)\", ROUND(restant_usd::numeric, 4) AS \"Restant (USD)\", pct_utilise AS \"% utilisé\", bloquee AS \"Bloquée\" FROM monitoring.v_keys ORDER BY depense_usd DESC"
+          "rawSql": "SELECT cle AS \"Clé\", ROUND(depense_usd::numeric, 4) AS \"Dépensé (USD)\", plafond_usd AS \"Plafond (USD)\", ROUND(restant_usd::numeric, 4) AS \"Restant (USD)\", pct_utilise AS \"% utilisé\", bloquee AS \"Bloquée\" FROM monitoring.v_keys WHERE cle IN ($cle) ORDER BY depense_usd DESC"
         }
       ],
       "fieldConfig": {
@@ -331,10 +335,10 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Dépense par clé (USD)",
+      "title": "Quelle clé dépense, et quand ? (USD)",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 15,
         "w": 12,
         "h": 8
       },
@@ -352,7 +356,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(ts, '1h'), cle AS metric, SUM(cout_usd) AS value FROM monitoring.v_spend WHERE $__timeFilter(ts) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(ts, '1h'), cle AS metric, SUM(cout_usd) AS value FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -380,10 +384,10 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "CO2 estimé par modèle (g)",
+      "title": "Quel modèle émet le plus de CO2 ? (gCO2e, estimation)",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 15,
         "w": 12,
         "h": 8
       },
@@ -401,7 +405,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(ts, '1h'), model AS metric, SUM(co2_g_estime) AS value FROM monitoring.v_spend WHERE $__timeFilter(ts) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(ts, '1h'), model AS metric, SUM(co2_g_estime) AS value FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -424,16 +428,17 @@
           "mode": "multi",
           "sort": "desc"
         }
-      }
+      },
+      "description": "Estimation : tokens × facteur du modèle. Ce n'est pas une mesure."
     },
     {
       "id": 8,
       "type": "table",
-      "title": "Comparaison par modèle (période affichée)",
-      "description": "Sert à comparer un modèle léger et un modèle de raisonnement sur les mêmes questions.",
+      "title": "Quel modèle coûte le plus cher ? (période affichée)",
+      "description": "Tokens, coût et CO2 estimé par modèle, sur la période affichée.",
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 23,
         "w": 24,
         "h": 6
       },
@@ -451,7 +456,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT model AS \"Modèle\", COUNT(*) AS \"Requêtes\", SUM(tokens_total) AS \"Tokens\", ROUND(SUM(cout_usd)::numeric, 4) AS \"Coût (USD)\", ROUND(SUM(co2_g_estime), 2) AS \"CO2 estimé (g)\", BOOL_OR(facteur_manquant) AS \"Facteur manquant\" FROM monitoring.v_spend WHERE $__timeFilter(ts) GROUP BY model ORDER BY \"Tokens\" DESC"
+          "rawSql": "SELECT model AS \"Modèle\", COUNT(*) AS \"Requêtes\", SUM(tokens_total) AS \"Tokens\", ROUND(SUM(cout_usd)::numeric, 4) AS \"Coût (USD)\", ROUND(SUM(co2_g_estime), 2) AS \"CO2 estimé (g)\", BOOL_OR(facteur_manquant) AS \"Facteur manquant\" FROM monitoring.v_spend WHERE $__timeFilter(ts) AND cle IN ($cle) AND model IN ($modele) GROUP BY model ORDER BY \"Tokens\" DESC"
         }
       ],
       "fieldConfig": {
@@ -466,10 +471,10 @@
     {
       "id": 9,
       "type": "text",
-      "title": "Comment lire le CO2",
+      "title": "Comment lire les estimations CO2",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 29,
         "w": 24,
         "h": 7
       },
@@ -477,6 +482,180 @@
         "mode": "markdown",
         "content": "### Comment lire le CO2\n\nCO2 estimé = tokens totaux / 1 000 × facteur du modèle (table `monitoring.co2_factors`).\n\n- Facteur de `mistral-small` : 2,85 gCO2e / 1 000 tokens.\n- Base : analyse de cycle de vie publiée par Mistral AI en 2025 : 1,14 gCO2e pour une réponse de 400 tokens sur Le Chat (inférence marginale). La presse la rattache à Mistral Large 2.\n- Ce facteur vient d'un modèle plus grand : il est **probablement haut**, pas mesuré.\n- Périmètre : inférence, hors terminaux des utilisateurs. Aucune marge d'erreur n'est publiée.\n- La formule compte les tokens d'entrée et de sortie : l'estimation est plutôt haute.\n\n**Estimation, pas bilan carbone.**"
       }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Dernière requête enregistrée",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 3
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "litellm-pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "litellm-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT MAX(ts) AS derniere FROM monitoring.v_spend"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsSystem",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Aucune"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Combien de clés sont suivies ?",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 3
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "litellm-pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "litellm-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS cles FROM monitoring.v_keys"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto",
+        "justifyMode": "auto"
+      }
     }
-  ]
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "cle",
+        "label": "Clé",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "litellm-pg"
+        },
+        "definition": "SELECT cle FROM monitoring.v_keys UNION SELECT 'sans alias' ORDER BY 1",
+        "query": "SELECT cle FROM monitoring.v_keys UNION SELECT 'sans alias' ORDER BY 1",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 1,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "modele",
+        "label": "Modèle",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "litellm-pg"
+        },
+        "definition": "SELECT DISTINCT model FROM monitoring.v_spend UNION SELECT model FROM monitoring.v_models ORDER BY 1",
+        "query": "SELECT DISTINCT model FROM monitoring.v_spend UNION SELECT model FROM monitoring.v_models ORDER BY 1",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 1,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  }
 }
