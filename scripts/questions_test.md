@@ -10,6 +10,6 @@ Pour chaque question, note trois choses : la réponse est-elle juste, la source 
 | 3 | Quelle est la durée légale hebdomadaire du travail effectif ? | Code du travail, L3121-27 | | | |
 | 4 | Quelle condition d'ancienneté ouvre droit au préavis en cas de licenciement ? | Code du travail, L1234-1 | | | |
 | 5 | Quel est le taux de TVA applicable aux travaux de rénovation ? | Hors corpus : le système doit dire qu'il ne trouve pas | | | |
-| 6 | Le Code civil prévoit-il une peine de prison pour un contrat non exécuté ? | Réponse attendue : non | | | |
+| 6 | Le Code civil prévoit-il une peine de prison pour un contrat non exécuté ? | Réponse attendue : refus (« Je ne trouve pas cette information dans les documents fournis. ») | | | |
 
 Question 5 est le test le plus important : une démo qui invente une réponse est disqualifiée.

@@ -32,6 +32,7 @@ services:
     volumes:
       # Volume nommé : évite les problèmes de permissions de SQLite avec un dossier monté
       - anythingllm_storage:/app/server/storage
+      - ./corpus:/app/collector/hotdir
     ports:
       - "127.0.0.1:3001:3001"
     depends_on:
@@ -60,5 +61,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  anythingllm_storage:
+  anythingllm_storage: 
   grafana_data:
