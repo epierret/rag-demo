@@ -5,6 +5,8 @@ model_list:
       # Pour une démo sérieuse, épingle une version précise (voir la doc Mistral).
       model: mistral/mistral-small-latest
       api_key: os.environ/MISTRAL_API_KEY
+      input_cost_per_token: 0.0000001    # remplace par le prix d'entrée / 1 000 000
+      output_cost_per_token: 0.0000003   # remplace par le prix de sortie / 1 000 000
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

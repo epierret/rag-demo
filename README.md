@@ -1,125 +1,190 @@
-# rag-demo : RAG juridique de démo (corpus public uniquement)
+# rag-demo : RAG gouverné (AnythingLLM → LiteLLM → Mistral)
 
-Chaîne : **AnythingLLM** (interface et RAG) → **LiteLLM** (passerelle, clés, plafonds) → **API Mistral** (hébergée en UE).
-Postgres stocke les clés LiteLLM.
+Démo d'un assistant RAG **qui ne répond qu'à partir de ses documents**, avec une **gouvernance mesurable** : budget par clé, consommation de tokens, estimation de CO₂, refus hors corpus et droits de lecture restreints sur la base.
 
-> Démo uniquement. Corpus public : aucune pièce réelle de client tant qu'il n'y a pas de cadre contractuel (RGPD, sous-traitance).
+Tout tourne en local sur une VM, derrière `127.0.0.1` : rien n'est exposé sur Internet.
 
-## 0. Prérequis sur la VM
+## Sommaire
 
-- Docker et le plugin Compose : `docker compose version`
-- Une clé API Mistral, avec une **limite de dépense mensuelle** activée dans la console Mistral (filet de sécurité indépendant de LiteLLM)
-- `cloudflared` pour le lien public temporaire (voir section 6)
+1. [Architecture](#architecture)
+2. [Prérequis](#prérequis)
+3. [Installation](#installation)
+4. [Configuration d'AnythingLLM](#configuration-danythingllm)
+5. [Corpus](#corpus)
+6. [Tests : refus hors corpus](#tests--refus-hors-corpus)
+7. [Gouvernance](#gouvernance)
+8. [Limites](#limites)
+9. [Sécurité](#sécurité)
 
-## 1. Installation
+## Architecture
+
+```
+Utilisateur ──► AnythingLLM (3001) ──► LiteLLM (4000) ──► Mistral (API)
+                 │  RAG : 2 fichiers      │  clés virtuelles, budgets
+                 │  (code_civil.txt,      │  journalisation des tokens
+                 │   code_travail.txt)    ▼
+                 │                    PostgreSQL 16 ◄── Grafana (3100)
+                 └── LanceDB + all-MiniLM-L6-v2           lecture seule
+                     (embeddings locaux)                  (rôle grafana_ro)
+```
+
+- **AnythingLLM** : interface et RAG. Le workspace est en mode **Requête** : sans passage pertinent, il ne répond pas.
+- **LiteLLM** : seul point de sortie vers Mistral. Chaque application reçoit une **clé virtuelle** avec un plafond en USD.
+- **PostgreSQL** : stocke les clés, les dépenses et les journaux de LiteLLM.
+- **Grafana** : dashboard de gouvernance, connecté avec le rôle `grafana_ro`, qui ne voit que les vues `monitoring.*`.
+
+## Prérequis
+
+- Docker et Docker Compose v2
+- Une clé API Mistral (console Mistral, avec un plafond mensuel activé)
+- Les deux textes de loi copiés depuis [Légifrance](https://www.legifrance.gouv.fr)
+
+## Installation
 
 ```bash
-git clone <URL_DU_REPO> rag-demo      # ou dézippe l'archive
+git clone https://github.com/epierret/rag-demo.git
 cd rag-demo
 cp .env.example .env
 ```
 
-Édite `.env` :
-- `MISTRAL_API_KEY` : ta clé Mistral
-- `LITELLM_MASTER_KEY` : `openssl rand -hex 24`, avec le préfixe `sk-`
-- `POSTGRES_PASSWORD` : `openssl rand -hex 16`
+Remplis `.env` : `MISTRAL_API_KEY`, `LITELLM_MASTER_KEY` (commence par `sk-`), `POSTGRES_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_RO_PASSWORD`. **Ne montre jamais ce fichier dans un terminal partagé ni dans une capture.**
 
-Démarre la stack :
+Lance la stack :
 
 ```bash
 docker compose up -d
-docker compose ps          # les trois services doivent être "running"
-docker compose logs -f litellm   # attends "Uvicorn running" ou équivalent, Ctrl+C pour sortir
+docker compose ps
 ```
 
-## 2. Créer la clé de démo plafonnée
+![Services en cours d'exécution](docs/rag-compose-ps.png)
+
+Crée la clé de démo, plafonnée à 5 USD :
 
 ```bash
-set -a; . ./.env; set +a
-chmod +x scripts/create_key.sh
-./scripts/create_key.sh 5        # plafond de 5 USD
+set -a; source .env; set +a
+./scripts/create_key.sh 5
 ```
 
-La réponse contient la clé virtuelle (`"key": "sk-..."`). Garde-la pour l'étape 3.
+Ne copie la clé que dans le champ de configuration d'AnythingLLM, et dans un fichier protégé (`chmod 600`).
 
-Le plafond est en USD et le budget est total, pas mensuel. Ajuste le montant selon ce que tu acceptes de perdre.
-
-## 3. Configurer AnythingLLM (une seule fois)
-
-Ouvre `http://127.0.0.1:3001` sur la VM. Si tu y accèdes depuis ton PC, passe par un tunnel SSH : `ssh -L 3001:127.0.0.1:3001 ubuntu@<ip-de-la-vm>`.
-
-1. Crée le compte administrateur.
-2. **Modèle LLM** : choisis le fournisseur compatible OpenAI (« Generic OpenAI » ou équivalent selon ta version).
-   - URL de base : `http://litellm:4000/v1` (le nom `litellm` ne fonctionne qu'à l'intérieur du réseau Docker, c'est voulu)
-   - Clé : la clé virtuelle de l'étape 2
-   - Modèle : `mistral-small`
-3. **Embeddings** : laisse le moteur natif pour la démo. Il tourne en local, sans API. Sa qualité sur le français juridique est limitée : c'est une amélioration à prévoir ensuite.
-4. **Base vectorielle** : laisse la valeur par défaut.
-5. **Multi-utilisateurs** : active le mode multi-utilisateur dans les paramètres, puis crée un compte par personne. Pas d'accès anonyme.
-
-Vérifie chaque réglage à la première ouverture : l'emplacement exact des options dépend de la version d'AnythingLLM.
-
-## 4. Charger le corpus public
-
-- Récupère les articles utiles sur Légifrance (Code civil, Code du travail) : quelques dizaines à quelques centaines d'articles suffisent pour la démo, pas le code entier.
-- Enregistre-les en `.txt` ou `.pdf`, un fichier par code ou par thème.
-- Dans AnythingLLM : crée un espace « Code civil » et importe les fichiers, puis lance l'indexation.
-
-## 5. Tester
-
-Ouvre `scripts/questions_test.md` et pose chaque question. Pour chacune, vérifie :
-- la réponse est juste ;
-- la source citée est la bonne ;
-- le système refuse quand l'information n'est pas dans le corpus (question 5 : le test le plus important).
-
-Vérifie chaque numéro d'article sur Légifrance avant la démo.
-
-## 6. Lien public temporaire
+Active le monitoring :
 
 ```bash
-cloudflared tunnel --url http://localhost:3001
+docker compose --profile monitoring up -d grafana
+./monitoring/setup_monitoring.sh
 ```
 
-La commande affiche une URL `https://....trycloudflare.com`. Elle change à chaque lancement.
+Le script crée la table `co2_factors`, le rôle `grafana_ro` et les vues `monitoring.v_spend`, `v_keys`, `v_models`.
 
-**Avant de la donner à qui que ce soit :**
-- ouvre l'URL depuis ton téléphone en 4G ;
-- connecte-toi avec un compte de test ;
-- vérifie qu'une question hors corpus est bien refusée.
+## Configuration d'AnythingLLM
 
-Ce tunnel de test n'a aucune garantie de disponibilité. Évite de redémarrer la VM pendant la démo.
+Paramètres système → **Préférence LLM** :
 
-## 7. Checklist avant de partager
+| Champ | Valeur |
+|---|---|
+| Fournisseur | Generic OpenAI |
+| Base URL | `http://litellm:4000/v1` |
+| API Key | clé `demo-rag` |
+| Selected Model | `mistral-small` |
 
-- [ ] Plafond de dépense créé avec `create_key.sh`
-- [ ] Limite de dépense mensuelle active dans la console Mistral
-- [ ] Mode multi-utilisateur activé, aucun accès anonyme
-- [ ] Corpus public uniquement
-- [ ] Ports liés à `127.0.0.1` (rien n'est exposé directement)
-- [ ] Test depuis la 4G réussi
-- [ ] Conditions d'utilisation de la plateforme de formation vérifiées
+Paramètres du workspace **Rag-Test** :
 
-## 8. Couper l'accès
+| Réglage | Valeur |
+|---|---|
+| Mode de chat | Requête |
+| Température | 0,1 |
+| Seuil de similarité | 0,25 (`Low`) |
+| Passages (topN) | 3 |
+| Message de refus | « Je ne trouve pas cette information dans les documents fournis. » |
+| Invite | voir ci-dessous |
+
+Invite utilisée :
+
+> Tu réponds uniquement à partir des passages de documents fournis dans le contexte. Si l'information n'est pas dans ces passages, réponds exactement : Je ne trouve pas cette information dans les documents fournis. Ne complète jamais avec tes connaissances générales. Cite toujours le fichier source, par exemple code_civil.txt. Réponds en français.
+
+![Configuration du workspace](docs/rag-anythingllm-config.png)
+
+## Corpus
+
+Deux fichiers, copiés **mot pour mot** depuis Légifrance (pas de paraphrase) :
+
+- `code_civil.txt` : articles 1103 et 1240
+- `code_travail.txt` : articles L1234-1 et L3121-27
+
+Chaque fichier commence par une ligne de source et la date de consultation. Les noms de fichiers comptent : l'invite demande au modèle de les citer.
+
+## Tests : refus hors corpus
+
+Les questions sont dans [`scripts/questions_test.md`](scripts/questions_test.md). Résultats :
+
+| # | Question | Attendu | Obtenu | Verdict |
+|---|---|---|---|---|
+| 1 | Réparation d'un dommage par faute | Art. 1240, `code_civil.txt` | Formule officielle, source citée | OK |
+| 2 | Force obligatoire des contrats | Art. 1103 | Citation exacte | OK |
+| 3 | Durée légale du travail | 35 heures | 35 heures, `code_travail.txt` | OK |
+| 4 | Préavis selon l'ancienneté | Les trois cas de L1234-1 | Les trois cas, `code_travail.txt` | OK |
+| 5 | Taux de TVA des travaux de rénovation (hors corpus) | Refus exact | Refus exact | OK |
+| 6 | Peine de prison pour contrat non exécuté (hors corpus) | Refus exact | Refus exact | OK |
+
+Le refus hors corpus est la capture de référence :
+
+![Refus hors corpus](docs/rag-refus-hors-corpus.png)
+
+![Réponse sourcée](docs/rag-reponse-source.png)
+
+## Gouvernance
+
+### Budget par clé
+
+Chaque clé a un plafond en USD. Quand la dépense atteint le plafond, LiteLLM refuse la requête avec `budget_exceeded`.
+
+![Blocage par budget](docs/rag-blocage-budget.png)
+
+Le dashboard montre la clé épuisée :
+
+![Budget et CO₂](docs/rag-budget-co2.png)
+
+### Dashboard de gouvernance
+
+Le dashboard « Gouvernance IA » affiche, par clé et par modèle : coût, tokens, requêtes, CO₂ estimé et budget restant.
+
+![Dashboard de gouvernance](docs/rag-grafana-gouvernance.png)
+
+### Droits de lecture
+
+Grafana se connecte avec `grafana_ro`, qui ne peut lire que les vues `monitoring.*`. La table brute des dépenses, qui contient les identifiants de clés, reste inaccessible :
+
+![Droits restreints](docs/rag-permission-denied.png)
+
+### Estimation de CO₂
+
+CO₂ estimé = tokens totaux / 1 000 × facteur du modèle (table `monitoring.co2_factors`).
+
+- Facteur de `mistral-small` : 2,85 gCO₂e par 1 000 tokens.
+- Ce facteur vient d'une analyse de cycle de vie publiée par Mistral AI, faite sur un modèle plus grand : il est **probablement haut**, pas mesuré.
+- Périmètre : inférence seule, hors terminaux.
+- La formule compte les tokens d'entrée et de sortie.
+
+**C'est une estimation, pas un bilan carbone.**
+
+## Limites
+
+- **Prix à maintenir** : sans prix dans `litellm/config.yaml`, le coût reste à 0 et aucune clé ne se bloque. Vérifie la grille Mistral avant de publier.
+- **Épuisée ≠ bloquée** : le dashboard compte une clé épuisée dès que la dépense atteint le plafond. La colonne « Bloquée » reste à `false` tant que LiteLLM ne la marque pas.
+- **Requêtes « sans alias »** : une clé mal configurée dans AnythingLLM fait compter ses requêtes sans alias. Vérifie la ligne `demo-rag` après chaque changement de clé.
+- **Corpus minimal** : deux fichiers, quatre articles. Le modèle d'embedding (all-MiniLM-L6-v2) a des scores plus bas qu'un modèle plus gros : le seuil de similarité doit être réglé en conséquence.
+- **Mono-utilisateur** : pas de SSO, pas de gestion fine des rôles AnythingLLM.
+- **Configuration AnythingLLM non versionnée** : les réglages du workspace sont dans la base, pas dans le dépôt. Les valeurs de référence sont dans ce README.
+
+## Sécurité
+
+- `.env`, `*-key.txt` et les volumes ne doivent jamais être commités : vérifie `.gitignore`.
+- Les services sont liés à `127.0.0.1` ; PostgreSQL n'est pas publié sur l'hôte.
+- Une clé affichée dans un terminal partagé ou une capture doit être révoquée :
 
 ```bash
-# arrêter le lien public : Ctrl+C dans le terminal de cloudflared
-docker compose stop         # arrête la stack, les données restent dans ./data
+curl -s http://127.0.0.1:4000/key/delete -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+  -H "Content-Type: application/json" -d '{"key_aliases": ["demo-rag"]}'
 ```
 
-Pour révoquer la clé de démo, supprime-la dans LiteLLM (endpoint `/key/delete`) ou change la clé maître.
-
-## Monitoring (optionnel)
-
-Tableau de bord Grafana en lecture seule : dépense par clé, budget restant, estimation du CO2 par modèle. Voir [`monitoring/README.md`](monitoring/README.md).
-
-## Dépannage
-
-- Un service ne démarre pas : `docker compose logs <service>`
-- AnythingLLM ne voit pas le modèle : vérifie l'URL `http://litellm:4000/v1` et la clé virtuelle, puis `docker compose logs -f litellm`
-- Erreurs d'authentification Mistral : vérifie `MISTRAL_API_KEY` dans `.env`, puis relance `docker compose up -d`
-
-## Limites connues
-
-- **Une seule clé pour AnythingLLM** : LiteLLM voit une clé, pas la personne qui pose la question. Le plafond est donc global à la démo. Une gouvernance par personne demande une clé par utilisateur côté passerelle, ce qui n'est pas dans cette version.
-- Les embeddings natifs sont faibles en français. Pour une version plus sérieuse, passe par un modèle d'embeddings multilingue (bge-m3 ou un endpoint hébergé en UE).
-- Non testé sur ta VM au moment de l'écriture : les noms des options AnythingLLM et les détails de l'endpoint LiteLLM sont à valider au premier démarrage.
+Puis recrée-la avec `./scripts/create_key.sh`.

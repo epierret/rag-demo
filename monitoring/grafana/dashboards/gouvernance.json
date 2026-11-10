@@ -507,7 +507,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT MAX(ts) AS derniere FROM monitoring.v_spend"
+          "rawSql": "SELECT EXTRACT(EPOCH FROM MAX(ts)) * 1000 AS derniere FROM monitoring.v_spend"
         }
       ],
       "fieldConfig": {
