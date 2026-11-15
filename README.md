@@ -1,4 +1,4 @@
-# rag-demo : RAG gouverné (AnythingLLM → LiteLLM → Mistral)
+# 🇫🇷 rag-souverain : RAG gouverné (AnythingLLM → LiteLLM → Mistral)
 
 Démo d'un assistant RAG **qui ne répond qu'à partir de ses documents**, avec une **gouvernance mesurable** : budget par clé, consommation de tokens, estimation de CO₂, refus hors corpus et droits de lecture restreints sur la base.
 
@@ -6,15 +6,36 @@ Tout tourne en local sur une VM, derrière `127.0.0.1` : rien n'est exposé sur 
 
 ## Sommaire
 
-1. [Architecture](#architecture)
-2. [Prérequis](#prérequis)
-3. [Installation](#installation)
-4. [Configuration d'AnythingLLM](#configuration-danythingllm)
-5. [Corpus](#corpus)
-6. [Tests : refus hors corpus](#tests--refus-hors-corpus)
-7. [Gouvernance](#gouvernance)
-8. [Limites](#limites)
-9. [Sécurité](#sécurité)
+1. [Pourquoi ce lab](#pourquoi-ce-lab)
+2. [Architecture](#architecture)
+3. [Prérequis](#prérequis)
+4. [Installation](#installation)
+5. [Configuration d'AnythingLLM](#configuration-danythingllm)
+6. [Corpus](#corpus)
+7. [Tests : refus hors corpus](#tests--refus-hors-corpus)
+8. [Gouvernance](#gouvernance)
+9. [Limites](#limites)
+10. [Sécurité](#sécurité)
+
+## Pourquoi ce lab
+
+Vu le contexte géopolitique et la teneur de certains échanges sur la gouvernance et la souveraineté, je pensais que le sujet finirait par passer devant l'actualité politique. J'imaginais même qu'il deviendrait un thème de campagne.
+
+L'IA s'est démocratisée. Après une phase d'évangélisation, elle est devenue essentielle, au point que très peu de gens s'imaginent aujourd'hui travailler sans elle. Elle n'est là que depuis peu, et pourtant il sera difficile d'évoluer sans. Une fois passé le temps de l'accoutumance aux nouveaux outils, un nouvel espace s'ouvre.
+
+Cet espace touche un domaine voisin : la cybersécurité. L'IA est devenue une porte d'entrée de plus en plus exploitée, et les outils conçus pour produire servent aussi à détruire :
+
+- l'injection de prompt, qui détourne un agent à travers un contenu qu'il lit ;
+- l'exfiltration de données par des assistants branchés sur les outils internes ;
+- le phishing et les malwares rédigés ou personnalisés à grande échelle par des modèles ;
+- l'empoisonnement des modèles, des données d'entraînement ou des dépendances logicielles ;
+- le « shadow AI », ces usages non déclarés qui font sortir des données de l'entreprise.
+
+Une gouvernance s'impose donc. Elle soulève la question de la souveraineté, alors que nous dépendons très largement d'acteurs américains. Elle soulève aussi celle de l'économie des tokens, qui fait de chaque requête un coût.
+
+Maintenant que ces sujets sont sur la table, il faut éduquer massivement pour que les infrastructures gagnent en maturité.
+
+C'est dans cet esprit que j'ai construit rag-souverain. Le modèle vient de Mistral AI, un fournisseur français, et les embeddings sont calculés en local. Toutes les requêtes passent par une passerelle unique qui plafonne la dépense de chaque clé, compte les tokens et estime le CO₂. L'assistant refuse de répondre hors de ses documents, et le tableau de bord n'a accès qu'aux données dont il a besoin.
 
 ## Architecture
 
@@ -42,8 +63,8 @@ Utilisateur ──► AnythingLLM (3001) ──► LiteLLM (4000) ──► Mist
 ## Installation
 
 ```bash
-git clone https://github.com/epierret/rag-demo.git
-cd rag-demo
+git clone https://github.com/epierret/rag-souverain.git
+cd rag-souverain
 cp .env.example .env
 ```
 
