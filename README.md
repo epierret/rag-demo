@@ -1,5 +1,5 @@
 # <p align="center">
-  <img src="docs/drapeau-france.png" alt="Drapeau français" width="320">
+  <img src="drapeau-france.png" alt="Drapeau français" width="320">
 </p>ag-souverain : RAG gouverné (AnythingLLM → LiteLLM → Mistral)
 
 Démo d'un assistant RAG **qui ne répond qu'à partir de ses documents**, avec une **gouvernance mesurable** : budget par clé, consommation de tokens, estimation de CO₂, refus hors corpus et droits de lecture restreints sur la base.
